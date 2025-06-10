@@ -1,16 +1,22 @@
 version: 0.2
 
 phases:
-  install:
-    runtime-versions:
-      nodejs: 16
+  pre_build:
     commands:
-      - echo Installing dependencies...
-      - npm install
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com
+      - REPO_NAME=nodejs-app
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
   build:
     commands:
-      - echo Build complete. No specific build steps.
+      - echo Building the Docker image...
+      - docker build -t $REPO_NAME:$IMAGE_TAG .
+      - docker tag $REPO_NAME:$IMAGE_TAG <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Pushing the Docker image...
+      - docker push <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+      - echo Writing image definitions...
+      - printf '[{"name":"nodejs-container","imageUri":"%s"}]' <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com/$REPO_NAME:$IMAGE_TAG > imagedefinitions.json
 artifacts:
-  files:
-    - '**/*'
-
+  files: imagedefinitions.json
